@@ -16,9 +16,11 @@ const handleLogin = async () => {
     await AuthStore.login(username.value, password.value);
     // 登录成功后的重定向逻辑
     if (AuthStore.role === 'student') {
-      router.push('/studentdashboard');
+      router.push('/Student');
     } else if (AuthStore.role === 'teacher') {
-      router.push('/teacherdashboard');
+      router.push('/Teacher');
+    } else {
+      router.push('/NotFound');
     }
   } catch (error) {
     errorMessage.value = error.message;
@@ -71,7 +73,7 @@ const handleLogin = async () => {
               </label>
 
               <input
-                v-model="usernaem"
+                v-model="username"
                 type="username"
                 id="username"
                 name="username"
@@ -103,7 +105,7 @@ const handleLogin = async () => {
 
               <p class="mt-4 text-sm text-gray-500 sm:mt-0">
                 没有账号？
-                <RouterLink to="/signup" class="text-gray-700 underline">注册</RouterLink>
+                <RouterLink to="/Signup" class="text-gray-700 underline">注册</RouterLink>
               </p>
             </div>
           </div>

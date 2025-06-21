@@ -48,7 +48,7 @@ export const useAuthStore = defineStore("auth", {
         await this.fetchUserInfo(accessToken);
         
         this.isAuthenticated = true;
-        return true;
+        return this.role;
         
       } catch (error) {
         // 处理登录失败
@@ -120,6 +120,67 @@ export const useAuthStore = defineStore("auth", {
       localStorage.removeItem("access_token");
       localStorage.removeItem("user");
       localStorage.removeItem("user_role");
-    }
+    },
+
+    /**
+     * 用户注册方法
+     */
+    async signup(
+      username,
+      password,
+      confirmPassword,
+      email,
+      role,
+      teacherTitle,
+      teacherDepartment,
+      studentGrade,
+      studentMajor
+    ) {
+      // 简单校验
+      if (!username || !password || !email) {
+        throw new Error("请填写完整信息");
+      }
+      if (password !== confirmPassword) {
+        throw new Error("两次密码不一致");
+      }
+
+      try {
+        let url, data;
+        if (role === "teacher") {
+          url = `${FASTAPI_BASE_URL}/tea/teachers/`;
+          data = {
+            title: teacherTitle,
+            department: teacherDepartment,
+            user: {
+              username,
+              email,
+              password
+            }
+          };
+        } else {
+          url = `${FASTAPI_BASE_URL}/stu/students/`;
+          data = {
+            grade: studentGrade,
+            major: studentMajor,
+            user: {
+              username,
+              email,
+              password
+            }
+          };
+        }
+
+        await axios.post(url, data, {
+          headers: { "Content-Type": "application/json" }
+        });
+        // 注册成功
+        return true;
+      } catch (error) {
+        if (error.response && error.response.data && error.response.data.detail) {
+          throw new Error(error.response.data.detail);
+        }
+        throw new Error("注册失败");
+      }
+    },
   }
 });

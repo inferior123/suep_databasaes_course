@@ -44,15 +44,6 @@ const handleLogOut = () => {
                   Home
                 </RouterLink>
               </li>
-
-              <li>
-                <RouterLink
-                  to="/todo"
-                  class="text-gray-500 transition hover:text-gray-500/75"
-                >
-                  Todo
-                </RouterLink>
-              </li>
             </ul>
           </nav>
         </div>
@@ -75,7 +66,7 @@ const handleLogOut = () => {
           </div>
 
           <div v-else class="sm:flex sm:gap-4 items-center">
-            <div class="text-gray-600">{{ useAuthStore.user?.email }}</div>
+            <div class="text-gray-600">{{ useAuthStore.user?.username }}</div>
             <button
               @click="handleLogOut"
               class="px-3 py-1 text-sm text-red-600 hover:bg-gray-100 rounded"
