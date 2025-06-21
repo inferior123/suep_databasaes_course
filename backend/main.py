@@ -312,10 +312,14 @@ async def submit_assignment(
     assignment = data_store.get_assignment(assignment_id)
     if not assignment:
         raise HTTPException(status_code=404, detail="作业不存在")
+
+    # 如果时间晚于截止日期就拒收
+    if datetime.utcnow() > assignment["deadline"]:
+        raise HTTPException(status_code=400, detail="作业已截止")
     
     # 保存文件
     file_path = data_store.save_upload_file(file)
-    
+     
     # 创建提交记录
     new_submission = data_store.create_submission({
         "student_id": student_id,

@@ -268,7 +268,16 @@ class DataStore:
                 "course_name": course.course_name,
                 "credit": course.credit
             }
-    
+
+    def get_teacher_course(teacher_id: int):
+        with self.get_db_session() as db:
+            teachercourses = db.query(TeacherCourse).filter(TeacherCourse.teacher_id == teacher_id).all()
+            return [{
+                "course_id": tc.course_id,
+                "course_name": tc.course_name,
+                "credit": tc.credit
+            } for tc in teachercourses]
+
     # === 作业相关方法 ===
     def get_assignment(self, assignment_id: int) -> Optional[Dict]:
         with self.get_db_session() as db:
