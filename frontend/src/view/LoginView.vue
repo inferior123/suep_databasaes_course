@@ -12,6 +12,7 @@ const AuthStore = useAuthStore();
 const router = useRouter();
 
 const handleLogin = async () => {
+  // 在handleLogin方法中替换错误处理
   try {
     await AuthStore.login(username.value, password.value);
     // 登录成功后的重定向逻辑
@@ -23,7 +24,7 @@ const handleLogin = async () => {
       router.push('/NotFound');
     }
   } catch (error) {
-    errorMessage.value = error.message;
+    toastStore.showToast(error.message, 'error');
   }
 };
 </script>

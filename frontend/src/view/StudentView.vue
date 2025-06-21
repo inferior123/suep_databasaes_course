@@ -72,7 +72,7 @@ const enrollCourse = async (courseId) => {
     await axios.post(`${FASTAPI_BASE_URL}/course/courses/${courseId}/enroll`, {}, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    enrollMsg.value = '选课成功！';
+    toastStore.showToast('选课成功', 'success');
     fetchStudentInfo(); // 选课后刷新学生课程
   } catch (e) {
     enrollMsg.value = e.response?.data?.detail || e.message || '选课失败';
