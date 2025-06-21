@@ -764,3 +764,45 @@ class DataStore:
                 "status": a.status,
                 "teacher_id": a.teacher_id
             } for a in assignments]
+
+    def get_teacher_courses(self, teacher_id: int):
+        with self.get_db_session() as db:
+            results = db.query(
+                Course.course_id,
+                Course.course_name,
+                Course.credit
+            ).join(
+                TeacherCourse, 
+                TeacherCourse.course_id == Course.course_id
+            ).filter(
+                TeacherCourse.teacher_id == teacher_id
+            ).all()
+            
+            return [
+                {
+                    "course_id": r.course_id,
+                    "course_name": r.course_name,
+                    "credit": r.credit,
+                }
+                for r in results
+            ]
+
+    def get_students_by_course_id(self, course_id: int):
+        with self.get_db_session() as db:
+            results = db.query(
+                Student.student_id,
+                model_user.username,
+                model_user.user_id
+            ).join(
+                model_user, Student.user_id == model_user.user_id
+            ).join(
+                StudentCourse, Student.student_id == StudentCourse.student_id
+            ).filter(
+                StudentCourse.course_id == course_id
+            ).all()
+            
+            return [{
+                "student_id": r.student_id,
+                "username": r.username,
+                "user_id": r.user_id,
+            } for r in results]

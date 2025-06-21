@@ -77,6 +77,9 @@ class CourseCreate(CourseBase):
 class CourseOut(CourseBase):
     course_id: int
 
+class Course_(CourseBase):
+    course_id: int
+
 class AssignmentBase(BaseModel):
     content: str
     deadline: datetime

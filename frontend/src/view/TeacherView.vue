@@ -1,11 +1,14 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { useAuthStore } from '../store/auth';
+import { useToastStore } from '../store/toast';
 import { FASTAPI_BASE_URL } from '../constants';
 import Navbar from '../components/NavBar.vue';
+import Toast from '../components/Toast.vue';
 
 const AuthStore = useAuthStore();
+const toastStore = useToastStore();
 const teacherInfo = ref(null);
 const error = ref('');
 const activeTab = ref('info'); // 默认显示教师信息
@@ -29,6 +32,12 @@ const newGrade = ref('');
 const newCourse = ref({ course_name: '', credit: '' });
 const createCourseMsg = ref('');
 
+// 新增用于修改课程成绩的状态
+const selectedCourseIdForGrading = ref('');
+const selectedStudentIdForGrading = ref('');
+const studentsInSelectedCourse = ref([]);
+const loadingStudents = ref(false);
+
 // 获取教师信息
 const fetchTeacherInfo = async () => {
   try {
@@ -45,12 +54,17 @@ const fetchTeacherInfo = async () => {
   fetchAllSubmissions();
 };
 
-// 获取课程列表
-const fetchCourses = async () => {
+// 获取该教师的课程列表
+const fetchTeacherCourses = async () => {
   try {
-    const res = await axios.get(`${FASTAPI_BASE_URL}/course/courses/`);
+    const token = localStorage.getItem('access_token');
+    const res = await axios.get(`${FASTAPI_BASE_URL}/tea/teachercourses`, {
+       headers: { Authorization: `Bearer ${token}` }
+    });
     courses.value = res.data;
-  } catch (e) {}
+  } catch (e) {
+    console.error("获取教师课程失败", e);
+  }
 };
 
 // 发布作业
@@ -58,21 +72,25 @@ const publishAssignment = async () => {
   publishMsg.value = '';
   try {
     const token = localStorage.getItem('access_token');
-    if (!newAssignment.value.content || !newAssignment.value.deadline || !newAssignment.value.status || !newAssignment.value.course_id) {
+    if (!newAssignment.value.content || !newAssignment.value.deadline || !newAssignment.value.status) {
       publishMsg.value = '请填写完整信息';
       return;
     }
-    // teacher_id 由后端自动获取，无需前端传递
+    // teacher_id 由前端根据登录信息提供
     await axios.post(`${FASTAPI_BASE_URL}/assign/assignments/`, {
       ...newAssignment.value,
       teacher_id: teacherInfo.value.teacher_id
     }, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    publishMsg.value = '发布成功！';
+    toastStore.showToast('发布成功！', 'success');
     fetchAllAssignments();
+    // 清空表单
+    newAssignment.value.content = '';
+    newAssignment.value.deadline = '';
   } catch (e) {
-    publishMsg.value = e.response?.data?.detail || e.message || '发布失败';
+    const errorMsg = e.response?.data?.detail || e.message || '发布失败';
+    toastStore.showToast(errorMsg, 'error');
   }
 };
 
@@ -138,22 +156,52 @@ const downloadSubmission = async (submissionId, filePath) => {
   }
 };
 
-// 修改成绩
+// 获取课程下的学生列表
+const fetchStudentsForCourse = async (courseId) => {
+  if (!courseId) {
+    studentsInSelectedCourse.value = [];
+    selectedStudentIdForGrading.value = '';
+    return;
+  }
+  loadingStudents.value = true;
+  gradeMsg.value = '';
+  try {
+    const token = localStorage.getItem('access_token');
+    const res = await axios.get(`${FASTAPI_BASE_URL}/course/courses/${courseId}/students`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    studentsInSelectedCourse.value = res.data;
+  } catch (e) {
+    gradeMsg.value = '获取学生列表失败';
+  } finally {
+    loadingStudents.value = false;
+  }
+};
+
+// 监听课程选择的变化
+watch(selectedCourseIdForGrading, (newCourseId) => {
+  fetchStudentsForCourse(newCourseId);
+});
+
+// 修改成绩 - 更新为使用新的状态
 const updateGrade = async () => {
   gradeMsg.value = '';
   try {
     const token = localStorage.getItem('access_token');
-    if (!selectedSubmission.value || !newGrade.value) {
-      gradeMsg.value = '请选择提交和输入成绩';
+    if (!selectedCourseIdForGrading.value || !selectedStudentIdForGrading.value || !newGrade.value) {
+      gradeMsg.value = '请选择课程、学生并输入成绩';
       return;
     }
     await axios.put(
-      `${FASTAPI_BASE_URL}/courses/${selectedSubmission.value.assignment_id}/grades/${selectedSubmission.value.student_id}`,
+      `${FASTAPI_BASE_URL}/course/courses/${selectedCourseIdForGrading.value}/grades/${selectedStudentIdForGrading.value}`,
       { grade: parseFloat(newGrade.value) },
       { headers: { Authorization: `Bearer ${token}` } }
     );
-    gradeMsg.value = '成绩修改成功！';
-    fetchAllSubmissions();
+    gradeMsg.value = '课程成绩修改成功！';
+    // 重置表单
+    selectedCourseIdForGrading.value = '';
+    selectedStudentIdForGrading.value = '';
+    newGrade.value = '';
   } catch (e) {
     gradeMsg.value = e.response?.data?.detail || e.message || '成绩修改失败';
   }
@@ -172,7 +220,11 @@ const createCourse = async () => {
       headers: { Authorization: `Bearer ${token}` }
     });
     createCourseMsg.value = '课程创建成功！';
-    fetchCourses();
+    // 清空表单
+    newCourse.value.course_name = '';
+    newCourse.value.credit = '';
+    // 刷新课程列表
+    fetchTeacherCourses();
   } catch (e) {
     createCourseMsg.value = e.response?.data?.detail || e.message || '创建失败';
   }
@@ -188,7 +240,7 @@ const sidebarButtonClasses = (tabName) => {
 
 onMounted(() => {
   fetchTeacherInfo();
-  fetchCourses();
+  fetchTeacherCourses();
   fetchAllAssignments();
   fetchAllSubmissions();
 });
@@ -197,6 +249,7 @@ onMounted(() => {
 <template>
   <div class="min-h-screen bg-gray-100">
     <Navbar />
+    <Toast />
 
     <main class="container mx-auto p-4 sm:p-6 lg:p-8">
       <div class="grid grid-cols-12 gap-6">
@@ -260,18 +313,9 @@ onMounted(() => {
                     <label class="block text-sm font-medium text-gray-700 mb-1">作业内容</label>
                     <textarea v-model="newAssignment.content" rows="3" class="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"></textarea>
                   </div>
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label class="block text-sm font-medium text-gray-700 mb-1">截止时间</label>
-                      <input v-model="newAssignment.deadline" type="datetime-local" class="w-full border-gray-300 rounded-md shadow-sm"/>
-                    </div>
-                    <div>
-                      <label class="block text-sm font-medium text-gray-700 mb-1">课程</label>
-                      <select v-model="newAssignment.course_id" class="w-full border-gray-300 rounded-md shadow-sm">
-                        <option disabled value="">请选择</option>
-                        <option v-for="c in courses" :key="c.course_id" :value="c.course_id">{{ c.course_name }}</option>
-                      </select>
-                    </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">截止时间</label>
+                    <input v-model="newAssignment.deadline" type="datetime-local" class="w-full border-gray-300 rounded-md shadow-sm"/>
                   </div>
                   <button type="submit" class="w-full px-4 py-2 bg-teal-500 text-white font-semibold rounded-md hover:bg-teal-600">发布</button>
                 </form>
@@ -300,21 +344,33 @@ onMounted(() => {
           <!-- Update Grade -->
           <div v-if="activeTab === 'grade'">
             <div class="bg-white rounded-lg shadow-md">
-              <div class="p-4 border-b"><h2 class="text-xl font-bold text-gray-800">修改学生成绩</h2></div>
+              <div class="p-4 border-b"><h2 class="text-xl font-bold text-gray-800">修改学生课程成绩</h2></div>
               <div class="p-6 max-w-md mx-auto">
+                <div v-if="gradeMsg" class="mb-4 text-blue-600">{{ gradeMsg }}</div>
                 <form @submit.prevent="updateGrade" class="space-y-4">
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">选择提交</label>
-                    <select v-model="selectedSubmission" class="w-full border-gray-300 rounded-md shadow-sm">
-                      <option disabled value="">请选择</option>
-                      <option v-for="sub in allSubmissions" :key="sub.submission_id" :value="sub">{{ sub.assignment_id }} - {{ sub.student_id }} - {{ sub.submit_time }}</option>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">选择课程</label>
+                    <select v-model="selectedCourseIdForGrading" class="w-full border-gray-300 rounded-md shadow-sm">
+                      <option disabled value="">请选择课程</option>
+                      <option v-for="c in courses" :key="c.course_id" :value="c.course_id">{{ c.course_name }}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">选择学生</label>
+                    <select v-model="selectedStudentIdForGrading" class="w-full border-gray-300 rounded-md shadow-sm" :disabled="loadingStudents || !selectedCourseIdForGrading">
+                      <option disabled value="">
+                        {{ loadingStudents ? '加载中...' : (studentsInSelectedCourse.length > 0 ? '请选择学生' : '该课程无学生或未选择课程') }}
+                      </option>
+                      <option v-for="s in studentsInSelectedCourse" :key="s.student_id" :value="s.student_id">
+                        {{ s.username }} (ID: {{ s.student_id }})
+                      </option>
                     </select>
                   </div>
                   <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">输入新成绩</label>
-                    <input v-model="newGrade" type="text" class="w-full border-gray-300 rounded-md shadow-sm"/>
+                    <input v-model="newGrade" type="number" min="0" max="150" placeholder="请输入分数" class="w-full border-gray-300 rounded-md shadow-sm"/>
                   </div>
-                  <button type="submit" class="w-full px-4 py-2 bg-teal-500 text-white font-semibold rounded-md hover:bg-teal-600">修改成绩</button>
+                  <button type="submit" class="w-full px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700">确认修改</button>
                 </form>
               </div>
             </div>
@@ -325,6 +381,7 @@ onMounted(() => {
             <div class="bg-white rounded-lg shadow-md">
               <div class="p-4 border-b"><h2 class="text-xl font-bold text-gray-800">创建新课程</h2></div>
               <div class="p-6 max-w-md mx-auto">
+                <div v-if="createCourseMsg" class="mb-4 text-blue-600">{{ createCourseMsg }}</div>
                 <form @submit.prevent="createCourse" class="space-y-4">
                   <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">课程名称</label>

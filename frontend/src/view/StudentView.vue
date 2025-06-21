@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/auth';
 import { FASTAPI_BASE_URL } from '../constants';
 import Navbar from '../components/NavBar.vue';
 
+// 学生信息相关
 const AuthStore = useAuthStore();
 const studentInfo = ref(null);
 const courses = ref([]);
@@ -96,7 +97,7 @@ const fetchAssignments = async () => {
   }
 };
 
-// 提交作业 - 修复后的版本
+// 提交作业
 const submitAssignment = async () => {
   if (!selectedAssignmentId.value || !selectedFile.value) {
     uploadMsg.value = '请选择作业和文件';

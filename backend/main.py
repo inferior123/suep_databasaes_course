@@ -187,6 +187,20 @@ async def delete_teacher(
     
     return {"message": "删除老师成功"}
 
+@tea_router.get("/teachercourses", response_model=list[Course_])
+async def get_teacher_own_courses(current_user: dict = Depends(get_current_user)):
+    user_id = current_user.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Could not validate credentials", headers={"WWW-Authenticate": "Bearer"})
+
+    teacher = data_store.get_teacher_by_user_id(user_id)
+    if not teacher:
+        return []
+    
+    teacher_id = teacher.get("teacher_id")
+    courses = data_store.get_teacher_courses(teacher_id=teacher_id)
+    return courses
+
 # === 学生管理端点 ===
 @stu_router.post("/students/", response_model=StudentOut)
 async def create_student(student: StudentCreate):
@@ -430,7 +444,7 @@ async def assign_permission(user_id: int, permission: PermissionAssign):
     return {"message": "权限分配成功"}
 
 # === 成绩管理端点 ===
-@api_router.put("/courses/{course_id}/grades/{student_id}", status_code=status.HTTP_200_OK)
+@api_router.put("/course/courses/{course_id}/grades/{student_id}", status_code=status.HTTP_200_OK)
 async def record_grade(
     course_id: int, 
     student_id: int, 
